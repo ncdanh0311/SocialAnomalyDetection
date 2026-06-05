@@ -1,3 +1,0 @@
-algorithm,total_users,anomaly_users,normal_users,anomaly_ratio
-K-Means,50000,2500,47500,5.0
-Isolation Forest,50000,2500,47500,5.0

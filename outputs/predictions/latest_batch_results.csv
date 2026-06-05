@@ -1,0 +1,4 @@
+﻿row,screen_name,is_anomaly,anomaly_result,anomaly_score,bot_prediction,bot_probability,classifier_confidence,risk_level,risk_explanation
+1,free_airdrop_999,True,Bất thường,0.134384,Người thật,45.0,55.0,Cần kiểm tra,Hành vi bất thường nhưng bộ phân loại chưa xác định là bot.
+2,minh_nguyen,False,Bình thường,-0.064904,Người thật,1.0,99.0,Rủi ro thấp,Cả hai mô hình đều đánh giá tài khoản có dấu hiệu bình thường.
+3,crypto_bonus_2026,True,Bất thường,0.160077,Bot,62.0,62.0,Rủi ro cao,Cả hai mô hình đều cảnh báo tài khoản này.

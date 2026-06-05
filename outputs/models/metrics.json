@@ -1,0 +1,19 @@
+{
+  "isolation_forest": {
+    "name": "Isolation Forest",
+    "accuracy": 0.7322,
+    "precision": 0.781,
+    "recall": 0.7988,
+    "f1": 0.7898,
+    "auc": 0.6725,
+    "contamination": 0.35
+  },
+  "random_forest": {
+    "name": "Random Forest",
+    "accuracy": 0.9846,
+    "precision": 0.9932,
+    "recall": 0.9822,
+    "f1": 0.9877,
+    "auc": 0.9956
+  }
+}

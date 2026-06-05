@@ -1,9 +1,12 @@
 pandas
 numpy
+scikit-learn
 matplotlib
 seaborn
-scikit-learn
-pyyaml
 jupyter
-networkx
 joblib
+fastapi
+uvicorn
+python-multipart
+pytest
+httpx

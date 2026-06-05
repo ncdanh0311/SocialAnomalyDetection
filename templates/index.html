@@ -1,0 +1,417 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Phát hiện tài khoản bất thường và bot</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='/styles.css') }}">
+  </head>
+  <body data-has-analysis-result="{{ 'true' if prediction or batch_summary or error else 'false' }}">
+    <div class="app-layout">
+      <aside class="sidebar">
+        <div class="brand">
+          <span class="brand-mark"><i data-lucide="shield-check"></i></span>
+          <strong>Bot Filter</strong>
+        </div>
+
+        <a class="new-analysis" href="#phan-tich" data-view-target="analysis-view">
+          <i data-lucide="plus"></i>
+          <span>Phân tích mới</span>
+        </a>
+
+        <nav class="side-nav" aria-label="Điều hướng chính">
+          <a class="active" href="#phan-tich" data-view-target="analysis-view">
+            <i data-lucide="search"></i>
+            <span>Phân tích bot</span>
+          </a>
+          <a href="#stats-view" data-view-target="stats-view">
+            <i data-lucide="bar-chart-3"></i>
+            <span>Thống kê</span>
+          </a>
+        </nav>
+      </aside>
+
+      <main class="main-content">
+        <div id="analysis-view" class="view-panel">
+        {% if warnings %}
+          <section class="notice warning" aria-label="Cảnh báo khởi động">
+            <i data-lucide="triangle-alert"></i>
+            <div>
+              <strong>Cảnh báo</strong>
+              <ul>
+                {% for item in warnings %}
+                  <li>{{ item }}</li>
+                {% endfor %}
+              </ul>
+            </div>
+          </section>
+        {% endif %}
+
+        {% if error %}
+          <section class="notice error" aria-label="Lỗi">
+            <i data-lucide="circle-alert"></i>
+            <div>
+              <strong>Không thể dự đoán</strong>
+              <p>{{ error }}</p>
+            </div>
+          </section>
+        {% endif %}
+
+        <section id="phan-tich" class="panel">
+          <header class="panel-title">
+            <span>Phân tích tài khoản mạng xã hội</span>
+          </header>
+
+          <form class="analysis-form" method="post" action="/predict-form">
+            <div class="form-tabs" role="tablist">
+              <button type="button" class="tab-btn {{ 'active' if active_tab == 'quick' or not active_tab else '' }}" data-tab="quick" role="tab" aria-selected="{{ 'true' if active_tab == 'quick' or not active_tab else 'false' }}">
+                <i data-lucide="zap"></i> Quét nhanh (Quick Scan)
+              </button>
+              <button type="button" class="tab-btn {{ 'active' if active_tab == 'advanced' else '' }}" data-tab="advanced" role="tab" aria-selected="{{ 'true' if active_tab == 'advanced' else 'false' }}">
+                <i data-lucide="sliders"></i> Quét nâng cao (Advanced Scan)
+              </button>
+            </div>
+            <input type="hidden" name="scan_mode" id="scan_mode" value="{{ active_tab or 'quick' }}">
+
+            <!-- Các đặc trưng cơ bản (Hiển thị ở cả 2 chế độ) -->
+            <div class="form-section">
+              <div class="field-grid">
+                <label>
+                  Tên người dùng (screen_name) *
+                  <input name="screen_name" type="text" value="free_airdrop_999" placeholder="Ví dụ: free_airdrop_999" required>
+                </label>
+                <label>
+                  Tên hiển thị (name)
+                  <input name="name" type="text" value="Khuyến mãi" placeholder="Nhập tên hiển thị">
+                </label>
+                <label class="span-2">
+                  Mô tả hồ sơ (description)
+                  <textarea name="description" rows="3" placeholder="Nhập phần giới thiệu của tài khoản">Nhận quà miễn phí ngay hôm nay.</textarea>
+                </label>
+                <label>
+                  Số người theo dõi (followers_count)
+                  <input name="followers_count" type="number" min="0" step="1" value="12">
+                </label>
+                <label>
+                  Số tài khoản đang theo dõi (friends_count)
+                  <input name="friends_count" type="number" min="0" step="1" value="2500">
+                </label>
+              </div>
+            </div>
+
+            <!-- Các đặc trưng nâng cao (Chỉ hiển thị ở chế độ Advanced Scan) -->
+            <div id="advanced-fields" {{ 'hidden' if active_tab == 'quick' or not active_tab else '' }}>
+              <div class="form-section">
+                <h2>Chỉ số hoạt động bổ sung:</h2>
+                <div class="field-grid numeric-grid">
+                  <label>Số bài đăng (statuses_count)<input name="statuses_count" type="number" min="0" step="1" value="8400"></label>
+                  <label>Số lượt yêu thích (favourites_count)<input name="favourites_count" type="number" min="0" step="1" value="5"></label>
+                  <label>Số danh sách (listed_count)<input name="listed_count" type="number" min="0" step="1" value="0"></label>
+                  <label class="span-2">Tuổi tài khoản theo ngày (account_age_days)<input name="account_age_days" type="number" min="1" step="1" value="12"></label>
+                </div>
+              </div>
+
+              <div class="form-section">
+                <h2>Thuộc tính hồ sơ:</h2>
+                <div class="toggle-grid">
+                  <label><input name="verified" type="checkbox" value="1"> Đã xác minh</label>
+                  <label><input name="default_profile" type="checkbox" value="1" checked> Hồ sơ mặc định</label>
+                  <label><input name="default_profile_image" type="checkbox" value="1"> Ảnh mặc định</label>
+                  <label><input name="geo_enabled" type="checkbox" value="1"> Bật vị trí</label>
+                  <label><input name="protected" type="checkbox" value="1"> Tài khoản riêng tư</label>
+                </div>
+              </div>
+            </div>
+
+            <div class="form-actions">
+              <button class="primary-button" type="submit">
+                <i data-lucide="search"></i>
+                <span>Phân tích</span>
+              </button>
+              <button class="secondary-button" type="reset">
+                <i data-lucide="rotate-ccw"></i>
+                <span>Xóa nội dung</span>
+              </button>
+            </div>
+          </form>
+        </section>
+
+        {% if prediction %}
+          <section class="panel result-panel" aria-label="Kết quả dự đoán">
+            <header class="panel-title">
+              <i data-lucide="clipboard-check"></i>
+              <span>Kết quả phân tích</span>
+            </header>
+            <div class="result-content">
+              <div class="decision {{ 'high-risk' if prediction.risk_level == 'Rủi ro cao' else 'review' if prediction.risk_level == 'Cần kiểm tra' else 'low-risk' }}">
+                <strong>{{ prediction.risk_level }}</strong>
+                <span>{{ prediction.risk_explanation }}</span>
+              </div>
+              <div class="result-grid">
+                <article>
+                  <span>Isolation Forest</span>
+                  <strong>{{ prediction.anomaly_result }}</strong>
+                  <small>Điểm bất thường: {{ prediction.anomaly_score }}</small>
+                </article>
+                <article>
+                  <span>Random Forest</span>
+                  <strong>{{ prediction.bot_prediction }}</strong>
+                  <small>Xác suất bot: {{ prediction.bot_probability }}%</small>
+                </article>
+                <article>
+                  <span>Độ tin cậy phân loại</span>
+                  <strong>{{ prediction.classifier_confidence }}%</strong>
+                  <small>Kết quả mô hình có giám sát</small>
+                </article>
+              </div>
+            </div>
+          </section>
+        {% endif %}
+
+        <section id="tai-csv" class="panel">
+          <header class="panel-title">
+            <i data-lucide="file-up"></i>
+            <span>Phân tích danh sách tài khoản</span>
+          </header>
+          <form class="upload-form" method="post" action="/upload-csv" enctype="multipart/form-data">
+            <label>
+              File CSV
+              <input name="csv_file" type="file" accept=".csv" required>
+            </label>
+            <div class="upload-actions">
+              <a class="secondary-button" href="/download-sample-csv">
+                <i data-lucide="download"></i>
+                <span>Tải CSV mẫu</span>
+              </a>
+              <button class="primary-button" type="submit">
+                <i data-lucide="upload"></i>
+                <span>Tải lên và phân tích</span>
+              </button>
+            </div>
+          </form>
+
+          {% if upload_warnings %}
+            <div class="upload-notice">
+              <i data-lucide="info"></i>
+              <div>
+                {% for item in upload_warnings %}
+                  <p>{{ item }}</p>
+                {% endfor %}
+              </div>
+            </div>
+          {% endif %}
+
+          {% if batch_summary %}
+            <div class="summary-strip">
+              <div><span>Tổng số</span><strong>{{ batch_summary.total }}</strong></div>
+              <div><span>Tỷ lệ bất thường</span><strong>{{ batch_summary.anomaly_rate }}%</strong></div>
+              <div><span>Tỷ lệ bot</span><strong>{{ batch_summary.bot_rate }}%</strong></div>
+              <div><span>Rủi ro cao</span><strong>{{ batch_summary.high_risk_count }}</strong></div>
+            </div>
+            <div class="download-result-row">
+              <a class="primary-button" href="/download-results">
+                <i data-lucide="file-down"></i>
+                <span>Tải kết quả CSV</span>
+              </a>
+            </div>
+          {% endif %}
+
+          {% if batch_results %}
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr><th>Dòng</th><th>Tên người dùng</th><th>Bất thường</th><th>Phân loại</th><th>Xác suất bot</th><th>Rủi ro</th></tr>
+                </thead>
+                <tbody>
+                  {% for row in batch_results %}
+                    <tr>
+                      <td>{{ row.row }}</td><td>{{ row.screen_name }}</td><td>{{ row.anomaly_result }}</td>
+                      <td>{{ row.bot_prediction }}</td><td>{{ row.bot_probability }}%</td><td>{{ row.risk_level }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% endif %}
+        </section>
+        </div>
+
+        <section id="stats-view" class="stats-dashboard view-panel" aria-label="Thống kê hệ thống" hidden>
+          <div class="stats-toolbar">
+            <h1>Thống kê hệ thống</h1>
+            <a class="secondary-button" href="#stats-view">
+              <i data-lucide="refresh-cw"></i>
+              <span>Làm mới</span>
+            </a>
+          </div>
+
+          <section class="stats-section">
+            <header class="panel-title">
+              <i data-lucide="chart-pie"></i>
+              <span>Thống kê tổng quan</span>
+            </header>
+            <div class="overview-grid">
+              <article><strong>{{ dataset_summary.total }}</strong><span>Tổng số tài khoản</span></article>
+              <article><strong class="human-value">{{ dataset_summary.human }}</strong><span>Tài khoản người thật</span></article>
+              <article><strong class="bot-value">{{ dataset_summary.bot }}</strong><span>Tài khoản bot</span></article>
+              <article><strong class="feature-value">{{ dataset_summary.feature_count }}</strong><span>Đặc trưng mô hình</span></article>
+            </div>
+          </section>
+
+          <section class="stats-section">
+            <header class="panel-title">
+              <i data-lucide="pie-chart"></i>
+              <span>Phân bố tài khoản trong dataset</span>
+            </header>
+            <div class="distribution-layout">
+              <div class="distribution-bars">
+                <div>
+                  <span>Người thật ({{ dataset_summary.human_rate }}%)</span>
+                  <div class="progress-track"><span class="human-bar" style="width: {{ dataset_summary.human_rate }}%"></span></div>
+                </div>
+                <div>
+                  <span>Bot ({{ dataset_summary.bot_rate }}%)</span>
+                  <div class="progress-track"><span class="bot-bar" style="width: {{ dataset_summary.bot_rate }}%"></span></div>
+                </div>
+              </div>
+              <div class="donut-wrap">
+                <div class="donut" style="--human-rate: {{ dataset_summary.human_rate }}%"></div>
+                <div class="chart-legend">
+                  <span><i class="legend-box human-bg"></i>Người thật</span>
+                  <span><i class="legend-box bot-bg"></i>Bot</span>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="stats-section">
+            <header class="panel-title">
+              <i data-lucide="chart-no-axes-combined"></i>
+              <span>Hiệu suất mô hình</span>
+            </header>
+            <div class="performance-layout">
+              <div class="metric-bars">
+                {% for _, row in metrics.items() %}
+                  <article>
+                    <h2>{{ row.name }}</h2>
+                    {% for metric_name, metric_value in [('Accuracy', row.accuracy), ('Precision', row.precision), ('Recall', row.recall), ('F1 Score', row.f1), ('AUC', row.auc)] %}
+                      <div class="metric-row">
+                        <span>{{ metric_name }}</span>
+                        <div class="progress-track"><i style="width: {{ metric_value * 100 if metric_value is not none else 0 }}%"></i></div>
+                        <strong>{{ '%.2f'|format(metric_value * 100) if metric_value is not none else 'N/A' }}%</strong>
+                      </div>
+                    {% endfor %}
+                  </article>
+                {% endfor %}
+              </div>
+              <div class="table-wrap metrics-table">
+                <table>
+                  <thead><tr><th>Mô hình</th><th>Accuracy</th><th>Precision</th><th>Recall</th><th>F1</th><th>AUC</th></tr></thead>
+                  <tbody>
+                    {% for _, row in metrics.items() %}
+                      <tr>
+                        <td>{{ row.name }}</td>
+                        <td>{{ row.accuracy if row.accuracy is not none else 'N/A' }}</td>
+                        <td>{{ row.precision if row.precision is not none else 'N/A' }}</td>
+                        <td>{{ row.recall if row.recall is not none else 'N/A' }}</td>
+                        <td>{{ row.f1 if row.f1 is not none else 'N/A' }}</td>
+                        <td>{{ row.auc if row.auc is not none else 'N/A' }}</td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+
+          <section class="stats-section">
+            <header class="panel-title">
+              <i data-lucide="chart-column"></i>
+              <span>Biểu đồ đánh giá trực quan</span>
+            </header>
+            <div class="figure-grid">
+              <figure>
+                <img src="{{ url_for('figures', path='/model_metrics_comparison.png') }}" alt="So sánh độ đo của các mô hình">
+                <figcaption>So sánh Accuracy, Precision, Recall, F1 và AUC</figcaption>
+              </figure>
+              <figure>
+                <img src="{{ url_for('figures', path='/confusion_matrices.png') }}" alt="Ma trận nhầm lẫn của các mô hình">
+                <figcaption>Ma trận nhầm lẫn của Isolation Forest và Random Forest</figcaption>
+              </figure>
+              <figure>
+                <img src="{{ url_for('figures', path='/feature_importance.png') }}" alt="Các đặc trưng quan trọng nhất của Random Forest">
+                <figcaption>Top đặc trưng quan trọng nhất của Random Forest</figcaption>
+              </figure>
+              <figure>
+                <img src="{{ url_for('figures', path='/followers_friends_scatter.png') }}" alt="Biểu đồ phân tán Followers vs Friends">
+                <figcaption>Biểu đồ phân tán Followers & Friends (Thang đo Log)</figcaption>
+              </figure>
+              <figure>
+                <img src="{{ url_for('figures', path='/anomaly_score_dist.png') }}" alt="Phân phối điểm bất thường của Isolation Forest">
+                <figcaption>Phân phối điểm bất thường Isolation Forest (Bot vs Người thật)</figcaption>
+              </figure>
+            </div>
+          </section>
+        </section>
+      </main>
+    </div>
+
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script>
+      lucide.createIcons();
+
+      const viewLinks = document.querySelectorAll("[data-view-target]");
+      const views = document.querySelectorAll(".view-panel");
+
+      function showView(viewId) {
+        views.forEach((view) => {
+          view.hidden = view.id !== viewId;
+        });
+
+        document.querySelectorAll(".side-nav a").forEach((link) => {
+          link.classList.toggle("active", link.dataset.viewTarget === viewId);
+        });
+      }
+
+      viewLinks.forEach((link) => {
+        link.addEventListener("click", () => showView(link.dataset.viewTarget));
+      });
+
+      const hasAnalysisResult = document.body.dataset.hasAnalysisResult === "true";
+      if (!hasAnalysisResult && window.location.hash === "#stats-view") {
+        showView("stats-view");
+      } else {
+        showView("analysis-view");
+      }
+
+      // Xử lý chuyển đổi Tab Quét Nhanh / Quét Nâng Cao
+      const tabBtns = document.querySelectorAll(".form-tabs .tab-btn");
+      const advancedFields = document.getElementById("advanced-fields");
+      const scanModeInput = document.getElementById("scan_mode");
+
+      tabBtns.forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const tab = btn.dataset.tab;
+          
+          // Toggle active class
+          tabBtns.forEach((b) => {
+            b.classList.remove("active");
+            b.setAttribute("aria-selected", "false");
+          });
+          btn.classList.add("active");
+          btn.setAttribute("aria-selected", "true");
+          
+          // Update hidden scan_mode input
+          scanModeInput.value = tab;
+          
+          // Show/Hide advanced fields
+          if (tab === "advanced") {
+            advancedFields.removeAttribute("hidden");
+          } else {
+            advancedFields.setAttribute("hidden", "");
+          }
+        });
+      });
+    </script>
+  </body>
+</html>
