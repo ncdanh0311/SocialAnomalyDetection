@@ -1,19 +1,19 @@
 {
   "isolation_forest": {
     "name": "Isolation Forest",
-    "accuracy": 0.7322,
-    "precision": 0.781,
-    "recall": 0.7988,
-    "f1": 0.7898,
-    "auc": 0.6725,
-    "contamination": 0.35
+    "accuracy": 0.9163,
+    "precision": 0.8944,
+    "recall": 0.9922,
+    "f1": 0.9407,
+    "auc": 0.9603,
+    "contamination": 0.25
   },
   "random_forest": {
     "name": "Random Forest",
-    "accuracy": 0.9846,
-    "precision": 0.9932,
-    "recall": 0.9822,
-    "f1": 0.9877,
-    "auc": 0.9956
+    "accuracy": 0.9872,
+    "precision": 0.9964,
+    "recall": 0.9844,
+    "f1": 0.9904,
+    "auc": 0.9965
   }
 }

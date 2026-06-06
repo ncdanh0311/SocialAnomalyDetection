@@ -6,7 +6,7 @@
     <title>Phát hiện tài khoản bất thường và bot</title>
     <link rel="stylesheet" href="{{ url_for('static', path='/styles.css') }}">
   </head>
-  <body data-has-analysis-result="{{ 'true' if prediction or batch_summary or error else 'false' }}">
+  <body data-has-analysis-result="{{ 'true' if prediction or batch_summary or error else 'false' }}" data-active-view="{{ active_view }}">
     <div class="app-layout">
       <aside class="sidebar">
         <div class="brand">
@@ -239,29 +239,40 @@
         <section id="stats-view" class="stats-dashboard view-panel" aria-label="Thống kê hệ thống" hidden>
           <div class="stats-toolbar">
             <h1>Thống kê hệ thống</h1>
-            <a class="secondary-button" href="#stats-view">
-              <i data-lucide="refresh-cw"></i>
-              <span>Làm mới</span>
-            </a>
+            <div style="display: flex; gap: 8px;">
+              <a class="secondary-button" href="" onclick="window.location.reload(); return false;">
+                <i data-lucide="refresh-cw"></i>
+                <span>Làm mới</span>
+              </a>
+              {% if dataset_summary.total > 0 %}
+                <form action="/clear-stats" method="post" style="display: inline;">
+                  <button type="submit" class="secondary-button" style="color: #ef4444; border-color: rgba(239, 68, 68, 0.2); background: rgba(239, 68, 68, 0.05); cursor: pointer; transition: all 0.2s;">
+                    <i data-lucide="trash-2"></i>
+                    <span>Xóa lịch sử</span>
+                  </button>
+                </form>
+              {% endif %}
+            </div>
           </div>
 
           <section class="stats-section">
             <header class="panel-title">
               <i data-lucide="chart-pie"></i>
-              <span>Thống kê tổng quan</span>
+              <span>Thống kê các tài khoản đã kiểm tra</span>
             </header>
             <div class="overview-grid">
-              <article><strong>{{ dataset_summary.total }}</strong><span>Tổng số tài khoản</span></article>
+              <article><strong>{{ dataset_summary.total }}</strong><span>Tổng số đã kiểm tra</span></article>
               <article><strong class="human-value">{{ dataset_summary.human }}</strong><span>Tài khoản người thật</span></article>
               <article><strong class="bot-value">{{ dataset_summary.bot }}</strong><span>Tài khoản bot</span></article>
-              <article><strong class="feature-value">{{ dataset_summary.feature_count }}</strong><span>Đặc trưng mô hình</span></article>
+              <article><strong class="feature-value" style="color: #f97316;">{{ dataset_summary.anomaly }}</strong><span>Tài khoản bất thường</span></article>
             </div>
           </section>
 
+          {% if dataset_summary.total > 0 %}
           <section class="stats-section">
             <header class="panel-title">
               <i data-lucide="pie-chart"></i>
-              <span>Phân bố tài khoản trong dataset</span>
+              <span>Phân bố tài khoản đã kiểm tra</span>
             </header>
             <div class="distribution-layout">
               <div class="distribution-bars">
@@ -283,6 +294,15 @@
               </div>
             </div>
           </section>
+          {% else %}
+            <div class="notice info" style="margin-top: 16px; border-radius: 8px; padding: 16px; background: rgba(59, 130, 246, 0.05); border: 1px solid rgba(59, 130, 246, 0.1); display: flex; gap: 12px; align-items: flex-start; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);">
+              <i data-lucide="info" style="color: #3b82f6; flex-shrink: 0; width: 20px; height: 20px; margin-top: 2px;"></i>
+              <div style="font-size: 0.95rem; color: #475569;">
+                <strong style="display: block; margin-bottom: 4px; color: #1e293b; font-weight: 600;">Chưa có dữ liệu thống kê tài khoản kiểm tra</strong>
+                <p style="margin: 0; color: #64748b;">Hệ thống chỉ hiển thị số liệu của các tài khoản đã được bạn kiểm tra thủ công hoặc tải lên bằng tệp CSV. Vui lòng thực hiện phân tích tài khoản ở phần <strong>Phân tích bot</strong> để bắt đầu tích lũy dữ liệu thống kê.</p>
+              </div>
+            </div>
+          {% endif %}
 
           <section class="stats-section">
             <header class="panel-title">
@@ -377,11 +397,13 @@
         link.addEventListener("click", () => showView(link.dataset.viewTarget));
       });
 
-      const hasAnalysisResult = document.body.dataset.hasAnalysisResult === "true";
-      if (!hasAnalysisResult && window.location.hash === "#stats-view") {
+      const activeView = document.body.dataset.activeView || "analysis-view";
+      if (window.location.hash === "#stats-view") {
         showView("stats-view");
-      } else {
+      } else if (window.location.hash === "#phan-tich" || window.location.hash === "#tai-csv") {
         showView("analysis-view");
+      } else {
+        showView(activeView);
       }
 
       // Xử lý chuyển đổi Tab Quét Nhanh / Quét Nâng Cao

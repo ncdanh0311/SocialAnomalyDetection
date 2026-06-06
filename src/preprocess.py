@@ -14,6 +14,7 @@ DATASET_FOLDERS = (
     "social_spambots_2",
     "social_spambots_3",
     "traditional_spambots_1",
+    "traditional_spambots_4",
 )
 
 LABELS = {
@@ -22,6 +23,7 @@ LABELS = {
     "social_spambots_2": 1,
     "social_spambots_3": 1,
     "traditional_spambots_1": 1,
+    "traditional_spambots_4": 1,
 }
 
 

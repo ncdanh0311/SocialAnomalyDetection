@@ -24,11 +24,14 @@ FIGURES_DIR = PROJECT_ROOT / "outputs" / "figures"
 PREDICTIONS_DIR = PROJECT_ROOT / "outputs" / "predictions"
 SAMPLE_ACCOUNTS_FILE = PROJECT_ROOT / "data" / "sample_accounts.csv"
 LATEST_BATCH_RESULTS_FILE = PREDICTIONS_DIR / "latest_batch_results.csv"
+TESTED_ACCOUNTS_FILE = PREDICTIONS_DIR / "tested_accounts.csv"
 
 FEATURES_FILE = PROCESSED_DIR / "features.csv"
 METRICS_FILE = MODELS_DIR / "metrics.json"
 IMPUTER_PATH = MODELS_DIR / "imputer.pkl"
 SCALER_PATH = MODELS_DIR / "scaler.pkl"
+IMPUTER_ISO_PATH = MODELS_DIR / "imputer_iso.pkl"
+SCALER_ISO_PATH = MODELS_DIR / "scaler_iso.pkl"
 ISOLATION_FOREST_PATH = MODELS_DIR / "isolation_forest.pkl"
 RANDOM_FOREST_PATH = MODELS_DIR / "random_forest.pkl"
 
@@ -168,6 +171,8 @@ DATASET_SUMMARY = load_dataset_summary()
 MODEL_METRICS = load_metrics()
 IMPUTER = load_artifact(IMPUTER_PATH)
 SCALER = load_artifact(SCALER_PATH)
+IMPUTER_ISO = load_artifact(IMPUTER_ISO_PATH)
+SCALER_ISO = load_artifact(SCALER_ISO_PATH)
 ISOLATION_FOREST = load_artifact(ISOLATION_FOREST_PATH)
 RANDOM_FOREST = load_artifact(RANDOM_FOREST_PATH)
 
@@ -179,6 +184,10 @@ def startup_warnings() -> list[str]:
         warnings.append("Thiếu imputer.pkl. Demo sẽ dùng trung vị từ features.csv.")
     if SCALER is None:
         warnings.append("Thiếu scaler.pkl. Demo sẽ sử dụng đặc trưng chưa chuẩn hóa.")
+    if IMPUTER_ISO is None:
+        warnings.append("Thiếu imputer_iso.pkl.")
+    if SCALER_ISO is None:
+        warnings.append("Thiếu scaler_iso.pkl.")
     if ISOLATION_FOREST is None:
         warnings.append("Thiếu isolation_forest.pkl. Không thể phát hiện bất thường.")
     if RANDOM_FOREST is None:
@@ -376,8 +385,52 @@ def build_feature_matrix(records: list[dict[str, Any]]) -> pd.DataFrame:
     return matrix[FEATURE_COLUMNS].replace([np.inf, -np.inf], np.nan)
 
 
+def prepare_matrices_for_prediction(records: list[dict[str, Any]]) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Xây dựng và chuẩn bị ma trận đặc trưng cho Random Forest và Isolation Forest."""
+    raw_matrix = build_feature_matrix(records)
+    
+    # 1. Log transform skewed count features
+    matrix_log = raw_matrix.copy()
+    skewed_cols = ["followers_count", "friends_count", "statuses_count", "favourites_count", "followers_friends_ratio"]
+    for col in skewed_cols:
+        if col in matrix_log.columns:
+            matrix_log[col] = np.log1p(matrix_log[col].clip(lower=0))
+            
+    # 2. Chuẩn bị ma trận cho Random Forest (tất cả 20 đặc trưng)
+    if IMPUTER is not None:
+        values_rf = IMPUTER.transform(matrix_log)
+        imputed_rf = pd.DataFrame(values_rf, columns=FEATURE_COLUMNS, index=raw_matrix.index)
+    else:
+        imputed_rf = matrix_log.fillna(FEATURE_MEDIANS)
+        
+    if SCALER is not None:
+        values_rf = SCALER.transform(imputed_rf)
+    else:
+        values_rf = imputed_rf.to_numpy()
+    matrix_rf = pd.DataFrame(values_rf, columns=FEATURE_COLUMNS, index=raw_matrix.index)
+    
+    # 3. Chuẩn bị ma trận cho Isolation Forest (7 đặc trưng liên tục cốt lõi)
+    iso_features = ["followers_count", "friends_count", "followers_friends_ratio", "statuses_count", "favourites_count", "account_age_days", "tweets_per_day"]
+    matrix_iso_raw = matrix_log[iso_features].copy()
+    
+    if IMPUTER_ISO is not None:
+        values_iso = IMPUTER_ISO.transform(matrix_iso_raw)
+        imputed_iso = pd.DataFrame(values_iso, columns=iso_features, index=raw_matrix.index)
+    else:
+        iso_medians = FEATURE_MEDIANS.reindex(iso_features).fillna(0.0)
+        imputed_iso = matrix_iso_raw.fillna(iso_medians)
+        
+    if SCALER_ISO is not None:
+        values_iso = SCALER_ISO.transform(imputed_iso)
+    else:
+        values_iso = imputed_iso.to_numpy()
+    matrix_iso = pd.DataFrame(values_iso, columns=iso_features, index=raw_matrix.index)
+    
+    return matrix_rf, matrix_iso
+
+
 def prepare_matrix(matrix: pd.DataFrame) -> pd.DataFrame:
-    """Điền dữ liệu thiếu và chuẩn hóa ma trận đặc trưng."""
+    """Điền dữ liệu thiếu và chuẩn hóa ma trận đặc trưng (giữ lại để tương thích ngược)."""
     if IMPUTER is not None:
         values = IMPUTER.transform(matrix)
         imputed = pd.DataFrame(values, columns=FEATURE_COLUMNS, index=matrix.index)
@@ -412,12 +465,12 @@ def risk_level(is_anomaly: bool, is_bot: bool) -> tuple[str, str]:
 def predict_records(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Chạy Isolation Forest và Random Forest cho một hoặc nhiều tài khoản."""
     ensure_models()
-    matrix = prepare_matrix(build_feature_matrix(records))
+    matrix_rf, matrix_iso = prepare_matrices_for_prediction(records)
 
-    anomaly_raw = ISOLATION_FOREST.predict(matrix)
-    anomaly_scores = -ISOLATION_FOREST.decision_function(matrix)
-    classifier_predictions = RANDOM_FOREST.predict(matrix)
-    probabilities = RANDOM_FOREST.predict_proba(matrix)
+    anomaly_raw = ISOLATION_FOREST.predict(matrix_iso)
+    anomaly_scores = -ISOLATION_FOREST.decision_function(matrix_iso)
+    classifier_predictions = RANDOM_FOREST.predict(matrix_rf)
+    probabilities = RANDOM_FOREST.predict_proba(matrix_rf)
 
     output = []
     for index, record in enumerate(records):
@@ -458,6 +511,75 @@ def summarize_batch(results: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def record_tested_accounts(results: list[dict[str, Any]]) -> None:
+    """Ghi nhận kết quả các tài khoản đã kiểm tra vào file lưu trữ lâu dài."""
+    PREDICTIONS_DIR.mkdir(parents=True, exist_ok=True)
+    
+    new_rows = []
+    for r in results:
+        new_rows.append({
+            "screen_name": r.get("screen_name", ""),
+            "anomaly_result": r.get("anomaly_result", ""),
+            "bot_prediction": r.get("bot_prediction", ""),
+            "risk_level": r.get("risk_level", ""),
+        })
+    df_new = pd.DataFrame(new_rows)
+    
+    if TESTED_ACCOUNTS_FILE.exists():
+        try:
+            df_old = pd.read_csv(TESTED_ACCOUNTS_FILE)
+            df_combined = pd.concat([df_old, df_new], ignore_index=True)
+        except Exception:
+            df_combined = df_new
+    else:
+        df_combined = df_new
+        
+    df_combined.to_csv(TESTED_ACCOUNTS_FILE, index=False, encoding="utf-8-sig")
+
+
+def get_tested_summary() -> dict[str, Any]:
+    """Tổng hợp số liệu thống kê từ các tài khoản người dùng đã kiểm tra."""
+    summary = {
+        "total": 0,
+        "human": 0,
+        "bot": 0,
+        "anomaly": 0,
+        "normal": 0,
+        "human_rate": 0.0,
+        "bot_rate": 0.0,
+        "anomaly_rate": 0.0,
+        "normal_rate": 0.0,
+    }
+    if not TESTED_ACCOUNTS_FILE.exists():
+        return summary
+        
+    try:
+        df = pd.read_csv(TESTED_ACCOUNTS_FILE)
+        total = len(df)
+        if total == 0:
+            return summary
+            
+        bot_count = int((df["bot_prediction"] == "Bot").sum())
+        human_count = total - bot_count
+        anomaly_count = int((df["anomaly_result"] == "Bất thường").sum())
+        normal_count = total - anomaly_count
+        
+        summary.update({
+            "total": total,
+            "human": human_count,
+            "bot": bot_count,
+            "anomaly": anomaly_count,
+            "normal": normal_count,
+            "human_rate": round(human_count / total * 100, 2) if total else 0.0,
+            "bot_rate": round(bot_count / total * 100, 2) if total else 0.0,
+            "anomaly_rate": round(anomaly_count / total * 100, 2) if total else 0.0,
+            "normal_rate": round(normal_count / total * 100, 2) if total else 0.0,
+        })
+    except Exception:
+        pass
+    return summary
+
+
 def demo_context(
     *,
     prediction: dict[str, Any] | None = None,
@@ -466,6 +588,7 @@ def demo_context(
     upload_warnings: list[str] | None = None,
     error: str | None = None,
     active_tab: str | None = None,
+    active_view: str | None = None,
 ) -> dict[str, Any]:
     """Tạo context chung cho giao diện."""
     return {
@@ -474,11 +597,12 @@ def demo_context(
         "batch_summary": batch_summary,
         "upload_warnings": upload_warnings or [],
         "can_download_results": LATEST_BATCH_RESULTS_FILE.exists(),
-        "dataset_summary": DATASET_SUMMARY,
+        "dataset_summary": get_tested_summary(),
         "metrics": MODEL_METRICS,
         "warnings": startup_warnings(),
         "error": error,
         "active_tab": active_tab or "quick",
+        "active_view": active_view or "analysis-view",
     }
 
 
@@ -555,6 +679,7 @@ async def predict_form(
         
     try:
         prediction = predict_records([record])[0]
+        record_tested_accounts([prediction])
         error = None
     except Exception as exc:
         prediction = None
@@ -573,6 +698,7 @@ async def upload_csv(request: Request, csv_file: UploadFile = File(...)):
     try:
         records, upload_warnings = await read_csv_upload(csv_file)
         results = predict_records(records)
+        record_tested_accounts(results)
         save_batch_results(results)
         error = None
     except Exception as exc:
@@ -588,6 +714,21 @@ async def upload_csv(request: Request, csv_file: UploadFile = File(...)):
             upload_warnings=upload_warnings,
             error=error,
         ),
+    )
+
+
+@app.post("/clear-stats", response_class=HTMLResponse)
+async def clear_stats(request: Request):
+    """Xóa lịch sử tài khoản đã kiểm tra."""
+    if TESTED_ACCOUNTS_FILE.exists():
+        try:
+            TESTED_ACCOUNTS_FILE.unlink()
+        except Exception:
+            pass
+    return templates.TemplateResponse(
+        request=request,
+        name="index.html",
+        context=demo_context(active_view="stats-view"),
     )
 
 

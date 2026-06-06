@@ -81,14 +81,14 @@ Kết quả mới nhất được lưu tại `outputs/models/metrics.json` và h
 
 | Mô hình | Accuracy | Precision | Recall | F1 | AUC |
 |---|---:|---:|---:|---:|---:|
-| Isolation Forest | 0.7322 | 0.7810 | 0.7988 | 0.7898 | 0.6725 |
-| Random Forest | 0.9846 | 0.9932 | 0.9822 | 0.9877 | 0.9956 |
+| Isolation Forest | 0.9163 | 0.8944 | 0.9922 | 0.9407 | 0.9603 |
+| Random Forest | 0.9872 | 0.9964 | 0.9844 | 0.9904 | 0.9965 |
 
-Isolation Forest sử dụng `contamination=0.35`, được chọn trên tập validation để cân bằng precision và recall. Random Forest là bộ phân loại bot chính.
+Isolation Forest sử dụng `contamination=0.25` (được chọn tự động trên tập validation) kết hợp log-transform trên các cột đếm, mang lại hiệu năng tối ưu vượt trội. Random Forest là bộ phân loại bot chính.
 
 - `class_dist.png`: Phân bố lớp dữ liệu (Bot vs Người thật) trong tập dữ liệu.
 - `followers_friends_scatter.png`: Biểu đồ phân tán so sánh lượng followers và friends (thang đo log), trực quan hóa sự khác biệt rõ rệt về hành vi kết nối của bot (thường theo dõi rất nhiều nhưng có ít người theo dõi lại) so với người thật.
-- `anomaly_score_dist.png`: Phân phối điểm bất thường (Anomaly Score) của Isolation Forest đối với bot và người thật. Biểu đồ này giải thích trực quan lý do lựa chọn ngưỡng `contamination = 0.35` (điểm phân cắt tối ưu trên tập validation) và chỉ ra mức độ chồng lấn (overlap) giữa hai phân phối, lý giải nguyên nhân tại sao AUC của Isolation Forest (học không giám sát) thấp hơn nhiều so với Random Forest (học có giám sát).
+- `anomaly_score_dist.png`: Phân phối điểm bất thường (Anomaly Score) của Isolation Forest đối với bot và người thật. Biểu đồ này giải thích trực quan lý do lựa chọn ngưỡng `contamination = 0.25` (điểm phân cắt tối ưu trên tập validation) và chỉ ra mức độ phân tách rõ rệt giữa hai phân phối sau khi áp dụng log-transform.
 - `model_metrics_comparison.png`: So sánh trực quan các chỉ số hiệu năng (Accuracy, Precision, Recall, F1, AUC) của các mô hình.
 - `confusion_matrices.png`: Ma trận nhầm lẫn của Isolation Forest và Random Forest trên tập test.
 - `roc_curve.png`: Đường cong ROC biểu diễn khả năng phân tách của các mô hình.
