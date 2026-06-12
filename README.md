@@ -39,10 +39,9 @@ Mỗi notebook đều có cell cấu hình đường dẫn dành cho máy local 
 /content/drive/MyDrive/bot-detection-project
 ```
 
-## Chạy web demo
+## Giao diện web demo
 
 ```bash
-cd bot-detection-project
 uvicorn src.main:app --reload
 ```
 
@@ -82,7 +81,7 @@ Kết quả mới nhất được lưu tại `outputs/models/metrics.json` và h
 | Mô hình | Accuracy | Precision | Recall | F1 | AUC |
 |---|---:|---:|---:|---:|---:|
 | Isolation Forest | 0.9163 | 0.8944 | 0.9922 | 0.9407 | 0.9603 |
-| Random Forest | 0.9872 | 0.9964 | 0.9844 | 0.9904 | 0.9965 |
+| Random Forest | 0.9862 | 0.9943 | 0.9851 | 0.9897 | 0.9966 |
 
 Isolation Forest sử dụng `contamination=0.25` (được chọn tự động trên tập validation) kết hợp log-transform trên các cột đếm, mang lại hiệu năng tối ưu vượt trội. Random Forest là bộ phân loại bot chính.
 

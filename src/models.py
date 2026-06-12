@@ -1,5 +1,7 @@
 """Huấn luyện mô hình phát hiện bất thường và phân loại bot."""
 
+from __future__ import annotations
+
 import warnings
 
 import numpy as np
@@ -97,7 +99,13 @@ def run_random_forest(
 ) -> dict:
     """Huấn luyện Random Forest và trả về các chỉ số đánh giá."""
     print("[mô hình] Đang huấn luyện Random Forest...")
-    model = RandomForestClassifier(n_estimators=100, random_state=SEED)
+    model = RandomForestClassifier(
+        n_estimators=300,
+        max_features="sqrt",
+        class_weight="balanced_subsample",
+        random_state=SEED,
+        n_jobs=-1,
+    )
     model.fit(X_train, y_train)
 
     y_pred = model.predict(X_test)

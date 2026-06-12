@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from io import BytesIO
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 import joblib
 import numpy as np
@@ -13,6 +13,8 @@ from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
+
+from src.features import SPAM_KEYWORDS, URL_MARKERS
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -68,12 +70,23 @@ DEFAULT_FEATURE_COLUMNS = [
     "protected",
     "verified",
     "followers_friends_ratio",
+    "friends_followers_ratio",
+    "friends_followers_gap",
     "account_age_days",
     "tweets_per_day",
+    "statuses_followers_ratio",
+    "statuses_friends_ratio",
+    "favourites_statuses_ratio",
     "has_description",
     "name_length",
+    "screen_name_length",
+    "description_length",
     "screen_name_digit_ratio",
     "screen_name_has_digits",
+    "screen_name_has_spam_keyword",
+    "description_has_spam_keyword",
+    "description_has_url",
+    "spam_keyword_count",
 ]
 
 FALLBACK_METRICS = {
@@ -95,6 +108,9 @@ FALLBACK_METRICS = {
     },
 }
 
+BOT_DEFAULT_THRESHOLD = 0.50
+BOT_REVIEW_THRESHOLD = 0.40
+
 
 app = FastAPI(
     title="Hệ thống phát hiện tài khoản bất thường và bot",
@@ -113,7 +129,7 @@ if FIGURES_DIR.exists():
     app.mount("/figures", StaticFiles(directory=str(FIGURES_DIR)), name="figures")
 
 
-def load_artifact(path: Path) -> Any | None:
+def load_artifact(path: Path) -> Optional[Any]:
     """Tải artifact đã lưu nếu file tồn tại."""
     if not path.exists():
         return None
@@ -317,6 +333,31 @@ def digit_ratio(value: Any) -> float:
     return sum(char.isdigit() for char in text) / len(text)
 
 
+def text_value(value: Any) -> str:
+    """Normalize missing text values to a lowercase string."""
+    if value is None or pd.isna(value):
+        return ""
+    return str(value).strip().lower()
+
+
+def has_spam_keyword(value: Any) -> float:
+    """Return 1.0 when text contains a common spam/bot keyword."""
+    text = text_value(value)
+    return float(int(any(keyword in text for keyword in SPAM_KEYWORDS)))
+
+
+def spam_keyword_count(*values: Any) -> float:
+    """Count spam keyword occurrences across multiple text fields."""
+    text = " ".join(text_value(value) for value in values)
+    return float(sum(text.count(keyword) for keyword in SPAM_KEYWORDS))
+
+
+def has_url(value: Any) -> float:
+    """Return 1.0 when text looks like it contains a URL."""
+    text = text_value(value)
+    return float(int(any(marker in text for marker in URL_MARKERS)))
+
+
 def build_demo_feature_row(data: dict[str, Any]) -> dict[str, float]:
     """Xây dựng một dòng đặc trưng từ form, API hoặc CSV."""
     data = normalize_row(data)
@@ -329,14 +370,13 @@ def build_demo_feature_row(data: dict[str, Any]) -> dict[str, float]:
     followers = safe_float(data.get("followers_count"), features.get("followers_count", np.nan))
     friends = safe_float(data.get("friends_count"), features.get("friends_count", np.nan))
     statuses = safe_float(data.get("statuses_count"), features.get("statuses_count", np.nan))
+    favourites = safe_float(data.get("favourites_count"), features.get("favourites_count", np.nan))
     age_days = get_account_age_days(data)
 
     features["followers_count"] = followers
     features["friends_count"] = friends
     features["statuses_count"] = statuses
-    features["favourites_count"] = safe_float(
-        data.get("favourites_count"), features.get("favourites_count", np.nan)
-    )
+    features["favourites_count"] = favourites
     features["listed_count"] = safe_float(data.get("listed_count"), features.get("listed_count", np.nan))
     features["verified"] = bool_to_int(data.get("verified"), features.get("verified", np.nan))
     features["default_profile"] = bool_to_int(
@@ -352,10 +392,18 @@ def build_demo_feature_row(data: dict[str, Any]) -> dict[str, float]:
 
     if not np.isnan(followers) and not np.isnan(friends):
         features["followers_friends_ratio"] = followers / (friends + 1)
+        features["friends_followers_ratio"] = friends / (followers + 1)
+        features["friends_followers_gap"] = friends - followers
 
     features["account_age_days"] = age_days
     if not np.isnan(statuses) and not np.isnan(age_days) and age_days > 0:
         features["tweets_per_day"] = statuses / age_days
+    if not np.isnan(statuses) and not np.isnan(followers):
+        features["statuses_followers_ratio"] = statuses / (followers + 1)
+    if not np.isnan(statuses) and not np.isnan(friends):
+        features["statuses_friends_ratio"] = statuses / (friends + 1)
+    if not np.isnan(favourites) and not np.isnan(statuses):
+        features["favourites_statuses_ratio"] = favourites / (statuses + 1)
 
     description = str(data.get("description", "") if data.get("description") is not None else "")
     name = str(data.get("name", "") if data.get("name") is not None else "")
@@ -363,8 +411,14 @@ def build_demo_feature_row(data: dict[str, Any]) -> dict[str, float]:
 
     features["has_description"] = float(int(description.strip() != ""))
     features["name_length"] = float(len(name.strip()))
+    features["screen_name_length"] = float(len(screen_name.strip()))
+    features["description_length"] = float(len(description.strip()))
     features["screen_name_digit_ratio"] = digit_ratio(screen_name)
     features["screen_name_has_digits"] = float(int(features["screen_name_digit_ratio"] > 0))
+    features["screen_name_has_spam_keyword"] = has_spam_keyword(screen_name)
+    features["description_has_spam_keyword"] = has_spam_keyword(description)
+    features["description_has_url"] = has_url(description)
+    features["spam_keyword_count"] = spam_keyword_count(screen_name, name, description)
 
     has_profile_image = data.get("has_profile_image")
     if has_profile_image is not None:
@@ -462,6 +516,20 @@ def risk_level(is_anomaly: bool, is_bot: bool) -> tuple[str, str]:
     return "Rủi ro thấp", "Cả hai mô hình đều đánh giá tài khoản có dấu hiệu bình thường."
 
 
+def bot_probability_threshold(record: dict[str, Any], is_anomaly: bool) -> float:
+    """Use a lower review threshold for suspicious accounts to reduce missed bots."""
+    normalized = normalize_row(record)
+    text = " ".join(
+        text_value(normalized.get(column, ""))
+        for column in ("screen_name", "name", "description")
+    )
+    has_keyword = any(keyword in text for keyword in SPAM_KEYWORDS)
+    has_link = any(marker in text for marker in URL_MARKERS)
+    if is_anomaly or has_keyword or has_link:
+        return BOT_REVIEW_THRESHOLD
+    return BOT_DEFAULT_THRESHOLD
+
+
 def predict_records(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Chạy Isolation Forest và Random Forest cho một hoặc nhiều tài khoản."""
     ensure_models()
@@ -469,15 +537,17 @@ def predict_records(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
     anomaly_raw = ISOLATION_FOREST.predict(matrix_iso)
     anomaly_scores = -ISOLATION_FOREST.decision_function(matrix_iso)
-    classifier_predictions = RANDOM_FOREST.predict(matrix_rf)
     probabilities = RANDOM_FOREST.predict_proba(matrix_rf)
 
     output = []
     for index, record in enumerate(records):
         is_anomaly = bool(anomaly_raw[index] == -1)
-        is_bot = bool(int(classifier_predictions[index]) == 1)
+        bot_probability = float(probabilities[index, 1])
+        threshold = bot_probability_threshold(record, is_anomaly)
+        is_bot = bool(bot_probability >= threshold)
         level, explanation = risk_level(is_anomaly, is_bot)
         normalized = normalize_row(record)
+        classifier_confidence = bot_probability if is_bot else 1.0 - bot_probability
         output.append(
             {
                 "row": index + 1,
@@ -486,8 +556,9 @@ def predict_records(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "anomaly_result": "Bất thường" if is_anomaly else "Bình thường",
                 "anomaly_score": round(float(anomaly_scores[index]), 6),
                 "bot_prediction": "Bot" if is_bot else "Người thật",
-                "bot_probability": round(float(probabilities[index, 1]) * 100, 2),
-                "classifier_confidence": round(float(np.max(probabilities[index])) * 100, 2),
+                "bot_probability": round(bot_probability * 100, 2),
+                "classifier_confidence": round(classifier_confidence * 100, 2),
+                "bot_threshold": round(threshold * 100, 2),
                 "risk_level": level,
                 "risk_explanation": explanation,
             }
@@ -512,7 +583,7 @@ def summarize_batch(results: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def record_tested_accounts(results: list[dict[str, Any]]) -> None:
-    """Ghi nhận kết quả các tài khoản đã kiểm tra vào file lưu trữ lâu dài."""
+    """Ghi nhận kết quả các tài khoản đã kiểm tra vào file lưu trữ lâu dài (không trùng lặp)."""
     PREDICTIONS_DIR.mkdir(parents=True, exist_ok=True)
     
     new_rows = []
@@ -533,6 +604,11 @@ def record_tested_accounts(results: list[dict[str, Any]]) -> None:
             df_combined = df_new
     else:
         df_combined = df_new
+        
+    if not df_combined.empty:
+        # Loại bỏ trùng lặp dựa trên screen_name (không phân biệt hoa thường), giữ lại kết quả kiểm tra mới nhất
+        df_combined["_sn_lower"] = df_combined["screen_name"].astype(str).str.lower().str.strip()
+        df_combined = df_combined.drop_duplicates(subset=["_sn_lower"], keep="last").drop(columns=["_sn_lower"])
         
     df_combined.to_csv(TESTED_ACCOUNTS_FILE, index=False, encoding="utf-8-sig")
 
@@ -582,13 +658,14 @@ def get_tested_summary() -> dict[str, Any]:
 
 def demo_context(
     *,
-    prediction: dict[str, Any] | None = None,
-    batch_results: list[dict[str, Any]] | None = None,
-    batch_summary: dict[str, Any] | None = None,
-    upload_warnings: list[str] | None = None,
-    error: str | None = None,
-    active_tab: str | None = None,
-    active_view: str | None = None,
+    prediction: Optional[dict[str, Any]] = None,
+    batch_results: Optional[list[dict[str, Any]]] = None,
+    batch_summary: Optional[dict[str, Any]] = None,
+    upload_warnings: Optional[list[str]] = None,
+    error: Optional[str] = None,
+    active_tab: Optional[str] = None,
+    active_view: Optional[str] = None,
+    form_data: Optional[dict[str, Any]] = None,
 ) -> dict[str, Any]:
     """Tạo context chung cho giao diện."""
     return {
@@ -603,6 +680,7 @@ def demo_context(
         "error": error,
         "active_tab": active_tab or "quick",
         "active_view": active_view or "analysis-view",
+        "form_data": form_data or {},
     }
 
 
@@ -638,17 +716,17 @@ async def predict_form(
     screen_name: str = Form(""),
     name: str = Form(""),
     description: str = Form(""),
-    followers_count: float | None = Form(None),
-    friends_count: float | None = Form(None),
-    statuses_count: float | None = Form(None),
-    favourites_count: float | None = Form(None),
-    listed_count: float | None = Form(None),
-    verified: int | None = Form(None),
-    default_profile: int | None = Form(None),
-    default_profile_image: int | None = Form(None),
-    geo_enabled: int | None = Form(None),
-    protected: int | None = Form(None),
-    account_age_days: float | None = Form(None),
+    followers_count: Optional[float] = Form(None),
+    friends_count: Optional[float] = Form(None),
+    statuses_count: Optional[float] = Form(None),
+    favourites_count: Optional[float] = Form(None),
+    listed_count: Optional[float] = Form(None),
+    verified: Optional[int] = Form(None),
+    default_profile: Optional[int] = Form(None),
+    default_profile_image: Optional[int] = Form(None),
+    geo_enabled: Optional[int] = Form(None),
+    protected: Optional[int] = Form(None),
+    account_age_days: Optional[float] = Form(None),
 ):
     """Dự đoán một tài khoản từ form."""
     record = {
@@ -685,10 +763,33 @@ async def predict_form(
         prediction = None
         error = str(exc)
         
+    form_data = {
+        "scan_mode": scan_mode,
+        "screen_name": screen_name,
+        "name": name,
+        "description": description,
+        "followers_count": followers_count,
+        "friends_count": friends_count,
+        "statuses_count": statuses_count,
+        "favourites_count": favourites_count,
+        "listed_count": listed_count,
+        "verified": verified,
+        "default_profile": default_profile,
+        "default_profile_image": default_profile_image,
+        "geo_enabled": geo_enabled,
+        "protected": protected,
+        "account_age_days": account_age_days,
+    }
+        
     return templates.TemplateResponse(
         request=request,
         name="index.html",
-        context=demo_context(prediction=prediction, error=error, active_tab=scan_mode),
+        context=demo_context(
+            prediction=prediction,
+            error=error,
+            active_tab=scan_mode,
+            form_data=form_data,
+        ),
     )
 
 
@@ -796,4 +897,3 @@ async def api_upload_csv(csv_file: UploadFile = File(...)):
         "download_url": "/download-results",
         "rows": results,
     }
-

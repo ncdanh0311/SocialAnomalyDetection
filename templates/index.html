@@ -78,23 +78,23 @@
               <div class="field-grid">
                 <label>
                   Tên người dùng (screen_name) *
-                  <input name="screen_name" type="text" value="free_airdrop_999" placeholder="Ví dụ: free_airdrop_999" required>
+                  <input name="screen_name" type="text" value="{{ form_data.get('screen_name') if form_data.get('screen_name') is not none else 'free_airdrop_999' }}" placeholder="Ví dụ: free_airdrop_999" required>
                 </label>
                 <label>
                   Tên hiển thị (name)
-                  <input name="name" type="text" value="Khuyến mãi" placeholder="Nhập tên hiển thị">
+                  <input name="name" type="text" value="{{ form_data.get('name') if form_data.get('name') is not none else 'Khuyến mãi' }}" placeholder="Nhập tên hiển thị">
                 </label>
                 <label class="span-2">
                   Mô tả hồ sơ (description)
-                  <textarea name="description" rows="3" placeholder="Nhập phần giới thiệu của tài khoản">Nhận quà miễn phí ngay hôm nay.</textarea>
+                  <textarea name="description" rows="3" placeholder="Nhập phần giới thiệu của tài khoản">{{ form_data.get('description') if form_data.get('description') is not none else 'Nhận quà miễn phí ngay hôm nay.' }}</textarea>
                 </label>
                 <label>
                   Số người theo dõi (followers_count)
-                  <input name="followers_count" type="number" min="0" step="1" value="12">
+                  <input name="followers_count" type="number" min="0" step="1" value="{{ form_data.get('followers_count') | int if form_data.get('followers_count') is not none else 12 }}">
                 </label>
                 <label>
                   Số tài khoản đang theo dõi (friends_count)
-                  <input name="friends_count" type="number" min="0" step="1" value="2500">
+                  <input name="friends_count" type="number" min="0" step="1" value="{{ form_data.get('friends_count') | int if form_data.get('friends_count') is not none else 2500 }}">
                 </label>
               </div>
             </div>
@@ -104,21 +104,21 @@
               <div class="form-section">
                 <h2>Chỉ số hoạt động bổ sung:</h2>
                 <div class="field-grid numeric-grid">
-                  <label>Số bài đăng (statuses_count)<input name="statuses_count" type="number" min="0" step="1" value="8400"></label>
-                  <label>Số lượt yêu thích (favourites_count)<input name="favourites_count" type="number" min="0" step="1" value="5"></label>
-                  <label>Số danh sách (listed_count)<input name="listed_count" type="number" min="0" step="1" value="0"></label>
-                  <label class="span-2">Tuổi tài khoản theo ngày (account_age_days)<input name="account_age_days" type="number" min="1" step="1" value="12"></label>
+                  <label>Số bài đăng (statuses_count)<input name="statuses_count" type="number" min="0" step="1" value="{{ form_data.get('statuses_count') | int if form_data.get('statuses_count') is not none else 8400 }}"></label>
+                  <label>Số lượt yêu thích (favourites_count)<input name="favourites_count" type="number" min="0" step="1" value="{{ form_data.get('favourites_count') | int if form_data.get('favourites_count') is not none else 5 }}"></label>
+                  <label>Số danh sách (listed_count)<input name="listed_count" type="number" min="0" step="1" value="{{ form_data.get('listed_count') | int if form_data.get('listed_count') is not none else 0 }}"></label>
+                  <label class="span-2">Tuổi tài khoản theo ngày (account_age_days)<input name="account_age_days" type="number" min="1" step="1" value="{{ form_data.get('account_age_days') | int if form_data.get('account_age_days') is not none else 12 }}"></label>
                 </div>
               </div>
 
               <div class="form-section">
                 <h2>Thuộc tính hồ sơ:</h2>
                 <div class="toggle-grid">
-                  <label><input name="verified" type="checkbox" value="1"> Đã xác minh</label>
-                  <label><input name="default_profile" type="checkbox" value="1" checked> Hồ sơ mặc định</label>
-                  <label><input name="default_profile_image" type="checkbox" value="1"> Ảnh mặc định</label>
-                  <label><input name="geo_enabled" type="checkbox" value="1"> Bật vị trí</label>
-                  <label><input name="protected" type="checkbox" value="1"> Tài khoản riêng tư</label>
+                  <label><input name="verified" type="checkbox" value="1" {{ 'checked' if form_data.get('verified') == 1 else '' }}> Đã xác minh</label>
+                  <label><input name="default_profile" type="checkbox" value="1" {{ 'checked' if (form_data.get('default_profile') == 1 or (form_data.get('default_profile') is none and not form_data)) else '' }}> Hồ sơ mặc định</label>
+                  <label><input name="default_profile_image" type="checkbox" value="1" {{ 'checked' if form_data.get('default_profile_image') == 1 else '' }}> Ảnh mặc định</label>
+                  <label><input name="geo_enabled" type="checkbox" value="1" {{ 'checked' if form_data.get('geo_enabled') == 1 else '' }}> Bật vị trí</label>
+                  <label><input name="protected" type="checkbox" value="1" {{ 'checked' if form_data.get('protected') == 1 else '' }}> Tài khoản riêng tư</label>
                 </div>
               </div>
             </div>

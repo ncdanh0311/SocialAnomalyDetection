@@ -1,5 +1,7 @@
 """Xây dựng đặc trưng hồ sơ tài khoản Twitter từ bộ dữ liệu Cresci-2017."""
 
+from __future__ import annotations
+
 import warnings
 
 import numpy as np
@@ -8,6 +10,42 @@ import pandas as pd
 
 SEED = 42
 REFERENCE_DATE = pd.Timestamp("2015-05-01", tz="UTC")
+SPAM_KEYWORDS = (
+    "free",
+    "airdrop",
+    "bonus",
+    "crypto",
+    "bitcoin",
+    "coin",
+    "token",
+    "nft",
+    "giveaway",
+    "click",
+    "link",
+    "claim",
+    "followback",
+    "follow",
+    "bot",
+    "spam",
+    "auto",
+    "win",
+    "winner",
+    "money",
+    "cash",
+    "prize",
+    "reward",
+    "promo",
+    "deal",
+    "offer",
+    "now",
+    "discount",
+    "earn",
+    "loan",
+    "forex",
+    "profit",
+    "gift",
+)
+URL_MARKERS = ("http://", "https://", "www.", "bit.ly", "t.co/")
 
 HIGH_CARDINALITY_COLUMNS = {
     "id",
@@ -74,6 +112,31 @@ def _screen_name_digit_ratio(screen_name: object) -> float:
     return sum(char.isdigit() for char in value) / len(value)
 
 
+def _text_value(value: object) -> str:
+    """Normalize missing text values to a lowercase string."""
+    if pd.isna(value):
+        return ""
+    return str(value).strip().lower()
+
+
+def _has_spam_keyword(value: object) -> int:
+    """Return 1 when text contains at least one common spam/bot keyword."""
+    text = _text_value(value)
+    return int(any(keyword in text for keyword in SPAM_KEYWORDS))
+
+
+def _spam_keyword_count(value: object) -> int:
+    """Count keyword occurrences in a combined text field."""
+    text = _text_value(value)
+    return int(sum(text.count(keyword) for keyword in SPAM_KEYWORDS))
+
+
+def _has_url(value: object) -> int:
+    """Return 1 when text looks like it contains a URL."""
+    text = _text_value(value)
+    return int(any(marker in text for marker in URL_MARKERS))
+
+
 def build_features(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series]:
     """Xây dựng đặc trưng số từ hồ sơ tài khoản Cresci-2017.
 
@@ -110,10 +173,14 @@ def build_features(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series]:
         followers = pd.to_numeric(work["followers_count"], errors="coerce")
         friends = pd.to_numeric(work["friends_count"], errors="coerce")
         work["followers_friends_ratio"] = followers / (friends + 1)
+        work["friends_followers_ratio"] = friends / (followers + 1)
+        work["friends_followers_gap"] = friends - followers
         print("[đặc trưng] Đã tạo followers_friends_ratio")
     else:
         _warn_missing(["followers_count", "friends_count"], "followers_friends_ratio")
         work["followers_friends_ratio"] = np.nan
+        work["friends_followers_ratio"] = np.nan
+        work["friends_followers_gap"] = np.nan
 
     if "created_at" in work.columns:
         created_at = pd.to_datetime(
@@ -152,6 +219,30 @@ def build_features(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series]:
         _warn_missing(["statuses_count", "account_age_days"], "tweets_per_day")
         work["tweets_per_day"] = np.nan
 
+    if {"statuses_count", "followers_count", "friends_count"}.issubset(work.columns):
+        statuses = pd.to_numeric(work["statuses_count"], errors="coerce")
+        followers = pd.to_numeric(work["followers_count"], errors="coerce")
+        friends = pd.to_numeric(work["friends_count"], errors="coerce")
+        work["statuses_followers_ratio"] = statuses / (followers + 1)
+        work["statuses_friends_ratio"] = statuses / (friends + 1)
+        print("[features] Created statuses_followers_ratio and statuses_friends_ratio")
+    else:
+        _warn_missing(
+            ["statuses_count", "followers_count", "friends_count"],
+            "statuses_followers_ratio/statuses_friends_ratio",
+        )
+        work["statuses_followers_ratio"] = np.nan
+        work["statuses_friends_ratio"] = np.nan
+
+    if {"favourites_count", "statuses_count"}.issubset(work.columns):
+        favourites = pd.to_numeric(work["favourites_count"], errors="coerce")
+        statuses = pd.to_numeric(work["statuses_count"], errors="coerce")
+        work["favourites_statuses_ratio"] = favourites / (statuses + 1)
+        print("[features] Created favourites_statuses_ratio")
+    else:
+        _warn_missing(["favourites_count", "statuses_count"], "favourites_statuses_ratio")
+        work["favourites_statuses_ratio"] = np.nan
+
     if "has_profile_image" in work.columns:
         work["has_profile_image"] = _to_int_flag(work["has_profile_image"])
     elif "default_profile_image" in work.columns:
@@ -166,14 +257,22 @@ def build_features(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series]:
     print("[đặc trưng] Đã tạo has_profile_image")
 
     if "description" in work.columns:
-        work["has_description"] = (
-            work["description"].fillna("").astype(str).str.strip().str.len() > 0
-        ).astype(int)
+        description_text = work["description"].fillna("").astype(str)
+        work["has_description"] = (description_text.str.strip().str.len() > 0).astype(int)
+        work["description_length"] = description_text.str.strip().str.len()
+        work["description_has_spam_keyword"] = description_text.apply(_has_spam_keyword)
+        work["description_has_url"] = description_text.apply(_has_url)
     elif "has_description" in work.columns:
         work["has_description"] = _to_int_flag(work["has_description"])
+        work["description_length"] = np.nan
+        work["description_has_spam_keyword"] = np.nan
+        work["description_has_url"] = np.nan
     else:
         _warn_missing(["description"], "has_description")
         work["has_description"] = np.nan
+        work["description_length"] = np.nan
+        work["description_has_spam_keyword"] = np.nan
+        work["description_has_url"] = np.nan
     print("[đặc trưng] Đã tạo has_description")
 
     if "name" in work.columns:
@@ -184,13 +283,30 @@ def build_features(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series]:
         work["name_length"] = np.nan
 
     if "screen_name" in work.columns:
+        screen_name_text = work["screen_name"].fillna("").astype(str)
+        work["screen_name_length"] = screen_name_text.str.strip().str.len()
         work["screen_name_digit_ratio"] = work["screen_name"].apply(_screen_name_digit_ratio)
         work["screen_name_has_digits"] = (work["screen_name_digit_ratio"] > 0).astype(int)
+        work["screen_name_has_spam_keyword"] = screen_name_text.apply(_has_spam_keyword)
         print("[đặc trưng] Đã tạo screen_name_digit_ratio và screen_name_has_digits")
     else:
         _warn_missing(["screen_name"], "screen_name_digit_ratio")
+        work["screen_name_length"] = np.nan
         work["screen_name_digit_ratio"] = np.nan
         work["screen_name_has_digits"] = np.nan
+        work["screen_name_has_spam_keyword"] = np.nan
+
+    empty_text = pd.Series("", index=work.index)
+    screen_name_text = (
+        work["screen_name"].fillna("").astype(str) if "screen_name" in work.columns else empty_text
+    )
+    name_text = work["name"].fillna("").astype(str) if "name" in work.columns else empty_text
+    description_text = (
+        work["description"].fillna("").astype(str) if "description" in work.columns else empty_text
+    )
+    combined_text = screen_name_text + " " + name_text + " " + description_text
+    work["spam_keyword_count"] = combined_text.apply(_spam_keyword_count)
+    print("[features] Created spam_keyword_count")
 
     drop_columns = [column for column in HIGH_CARDINALITY_COLUMNS if column in work.columns]
     work = work.drop(columns=drop_columns, errors="ignore")

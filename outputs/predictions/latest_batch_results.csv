@@ -1,4 +1,21 @@
-﻿row,screen_name,is_anomaly,anomaly_result,anomaly_score,bot_prediction,bot_probability,classifier_confidence,risk_level,risk_explanation
-1,free_airdrop_999,True,Bất thường,0.233471,Người thật,41.0,59.0,Cần kiểm tra,Hành vi bất thường nhưng bộ phân loại chưa xác định là bot.
-2,minh_nguyen,False,Bình thường,-0.033811,Người thật,0.0,100.0,Rủi ro thấp,Cả hai mô hình đều đánh giá tài khoản có dấu hiệu bình thường.
-3,crypto_bonus_2026,True,Bất thường,0.243393,Bot,54.0,54.0,Rủi ro cao,Cả hai mô hình đều cảnh báo tài khoản này.
+﻿row,screen_name,is_anomaly,anomaly_result,anomaly_score,bot_prediction,bot_probability,classifier_confidence,bot_threshold,risk_level,risk_explanation
+1,minh_nguyen,False,Bình thường,-0.134421,Người thật,0.33,99.67,50.0,Rủi ro thấp,Cả hai mô hình đều đánh giá tài khoản có dấu hiệu bình thường.
+2,lamtuananh762,False,Bình thường,-0.142613,Người thật,6.33,93.67,50.0,Rủi ro thấp,Cả hai mô hình đều đánh giá tài khoản có dấu hiệu bình thường.
+3,ngothuylinh101,False,Bình thường,-0.135967,Người thật,2.33,97.67,50.0,Rủi ro thấp,Cả hai mô hình đều đánh giá tài khoản có dấu hiệu bình thường.
+4,vuthanhson90,False,Bình thường,-0.146624,Người thật,0.67,99.33,50.0,Rủi ro thấp,Cả hai mô hình đều đánh giá tài khoản có dấu hiệu bình thường.
+5,tranthib614,False,Bình thường,-0.141052,Người thật,2.33,97.67,50.0,Rủi ro thấp,Cả hai mô hình đều đánh giá tài khoản có dấu hiệu bình thường.
+6,coin_reward_7711,True,Bất thường,0.131035,Bot,67.67,67.67,40.0,Rủi ro cao,Cả hai mô hình đều cảnh báo tài khoản này.
+7,deal_click_6827,True,Bất thường,0.121802,Bot,58.0,58.0,40.0,Rủi ro cao,Cả hai mô hình đều cảnh báo tài khoản này.
+8,bot_update_7811,True,Bất thường,0.105409,Bot,73.67,73.67,40.0,Rủi ro cao,Cả hai mô hình đều cảnh báo tài khoản này.
+9,promo_auto_6188,True,Bất thường,0.134285,Bot,62.33,62.33,40.0,Rủi ro cao,Cả hai mô hình đều cảnh báo tài khoản này.
+10,crypto_bonus_9437,True,Bất thường,0.142783,Bot,63.33,63.33,40.0,Rủi ro cao,Cả hai mô hình đều cảnh báo tài khoản này.
+11,giveaway_now_3797,True,Bất thường,0.125468,Bot,54.67,54.67,40.0,Rủi ro cao,Cả hai mô hình đều cảnh báo tài khoản này.
+12,spam_news_8554,True,Bất thường,0.128761,Bot,68.33,68.33,40.0,Rủi ro cao,Cả hai mô hình đều cảnh báo tài khoản này.
+13,gift_claim_9326,True,Bất thường,0.133887,Bot,67.67,67.67,40.0,Rủi ro cao,Cả hai mô hình đều cảnh báo tài khoản này.
+14,free_airdrop_2580,True,Bất thường,0.159306,Bot,66.67,66.67,40.0,Rủi ro cao,Cả hai mô hình đều cảnh báo tài khoản này.
+15,coin_reward_1565,True,Bất thường,0.127404,Bot,68.33,68.33,40.0,Rủi ro cao,Cả hai mô hình đều cảnh báo tài khoản này.
+16,orangeCoun51045,True,Bất thường,0.042949,Bot,76.0,76.0,40.0,Rủi ro cao,Cả hai mô hình đều cảnh báo tài khoản này.
+17,landarchma5546,True,Bất thường,0.036389,Bot,76.0,76.0,40.0,Rủi ro cao,Cả hai mô hình đều cảnh báo tài khoản này.
+18,jandijkgra97271,True,Bất thường,0.099351,Bot,76.67,76.67,40.0,Rủi ro cao,Cả hai mô hình đều cảnh báo tài khoản này.
+19,AmberTognazzini,True,Bất thường,0.04285,Bot,74.67,74.67,40.0,Rủi ro cao,Cả hai mô hình đều cảnh báo tài khoản này.
+20,BradinBuff62004,True,Bất thường,0.102717,Bot,76.33,76.33,40.0,Rủi ro cao,Cả hai mô hình đều cảnh báo tài khoản này.

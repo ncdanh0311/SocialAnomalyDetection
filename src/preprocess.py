@@ -1,5 +1,7 @@
 """Tải và gộp dữ liệu hồ sơ tài khoản từ bộ Cresci-2017."""
 
+from __future__ import annotations
+
 from pathlib import Path
 import warnings
 
